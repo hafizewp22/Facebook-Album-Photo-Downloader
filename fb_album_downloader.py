@@ -1,23 +1,23 @@
 """
 Facebook Album Photo Downloader
 --------------------------------
-Mengunduh semua foto resolusi tinggi dari satu album Facebook publik.
+Downloads all high-resolution photos from a single public Facebook album.
 
-CARA PAKAI:
-1. Install dependency:
+USAGE:
+1. Install dependencies:
    pip install selenium requests
 
-2. Download chromedriver yang cocok dengan versi Chrome kamu:
+2. Download the chromedriver matching your Chrome version:
    https://googlechromelabs.github.io/chrome-for-testing/
-   (atau install via: pip install webdriver-manager, lihat catatan di bawah)
+   (or install via: pip install webdriver-manager)
 
-3. Jalankan:
+3. Run:
    python fb_album_downloader.py "https://www.facebook.com/media/set/?set=oa.XXXXXXXXXX"
 
-4. Jendela Chrome akan terbuka. Kalau diminta login/verifikasi, login manual
-   di jendela itu, lalu tekan ENTER di terminal untuk lanjut.
+4. A Chrome window will open. If Facebook asks you to log in or verify,
+   do it manually in that window, then press ENTER in the terminal to continue.
 
-5. Foto akan tersimpan di folder ./downloads/<nama_album>/
+5. Photos will be saved to ./downloads/<album_name>/
 """
 
 import os
@@ -30,27 +30,27 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 
-# ---------- KONFIGURASI ----------
-DELAY_ANTAR_FOTO = 1.5      # jeda detik antar klik "next" (perbesar kalau sering diblokir)
-DELAY_LOAD_AWAL = 3         # jeda tunggu load halaman awal
-MAX_RETRY = 3                # retry kalau elemen belum muncul
+# ---------- CONFIG ----------
+DELAY_BETWEEN_PHOTOS = 1.5   # seconds between "next" clicks (increase if you get rate-limited)
+DELAY_INITIAL_LOAD = 3       # seconds to wait for the initial page load
+MAX_RETRY = 3                # retries when an element hasn't appeared yet
 OUTPUT_DIR = "downloads"
-# -----------------------------------
+# -----------------------------
 
 
 def setup_driver():
     options = Options()
     options.add_argument("--start-maximized")
-    # Jangan pakai headless dulu supaya kamu bisa login manual kalau perlu
+    # Not using headless mode so you can log in manually if needed
     driver = webdriver.Chrome(options=options)
     return driver
 
 
 def wait_and_login(driver, album_url):
     driver.get(album_url)
-    time.sleep(DELAY_LOAD_AWAL)
-    print("\n>>> Kalau Facebook minta login/captcha, silakan selesaikan di jendela Chrome.")
-    input(">>> Setelah album terlihat (foto-foto thumbnail muncul), tekan ENTER di sini untuk lanjut...\n")
+    time.sleep(DELAY_INITIAL_LOAD)
+    print("\n>>> If Facebook asks for login/captcha, please complete it in the Chrome window.")
+    input(">>> Once the album is visible (thumbnails loaded), press ENTER here to continue...\n")
 
 
 def get_album_name(driver):
@@ -60,7 +60,7 @@ def get_album_name(driver):
 
 
 def open_first_photo(driver):
-    """Klik thumbnail foto pertama untuk membuka photo viewer."""
+    """Click the first photo thumbnail to open the photo viewer."""
     try:
         first_photo = driver.find_element(
             By.CSS_SELECTOR, 'a[href*="/photo/"], a[href*="photo.php"]'
@@ -69,24 +69,24 @@ def open_first_photo(driver):
         time.sleep(2)
         return True
     except Exception as e:
-        print(f"Gagal membuka foto pertama: {e}")
+        print(f"Failed to open the first photo: {e}")
         return False
 
 
 def get_current_image_url(driver):
-    """Ambil src gambar resolusi tinggi yang sedang terbuka di viewer."""
+    """Get the src of the high-resolution image currently open in the viewer."""
     for _ in range(MAX_RETRY):
         try:
             imgs = driver.find_elements(By.CSS_SELECTOR, "img")
-            # Foto resolusi tinggi biasanya elemen img terbesar di viewer,
-            # dengan atribut src berisi domain scontent
+            # The high-res photo is usually the largest img element in the viewer,
+            # with a src pointing to a "scontent" domain
             candidates = [
                 img.get_attribute("src")
                 for img in imgs
                 if img.get_attribute("src") and "scontent" in img.get_attribute("src")
             ]
             if candidates:
-                # Ambil yang paling panjang URL-nya (biasanya resolusi asli)
+                # Pick the longest URL (usually the original resolution)
                 return max(candidates, key=len)
         except Exception:
             pass
@@ -95,7 +95,7 @@ def get_current_image_url(driver):
 
 
 def click_next(driver):
-    """Klik tombol Next (panah kanan) di photo viewer."""
+    """Click the Next (right arrow) button in the photo viewer."""
     try:
         next_btn = driver.find_element(
             By.CSS_SELECTOR, 'div[aria-label="Next photo"], div[aria-label="Foto berikutnya"]'
@@ -103,13 +103,13 @@ def click_next(driver):
         next_btn.click()
         return True
     except Exception:
-        # fallback: tombol panah kanan keyboard
+        # fallback: right-arrow keyboard shortcut
         try:
             body = driver.find_element(By.TAG_NAME, "body")
             body.send_keys(Keys.ARROW_RIGHT)
             return True
         except Exception as e:
-            print(f"Tidak bisa klik next: {e}")
+            print(f"Couldn't click next: {e}")
             return False
 
 
@@ -120,19 +120,19 @@ def download_image(url, folder, index):
         ext = ".jpg"
         if ".png" in url.split("?")[0].lower():
             ext = ".png"
-        path = os.path.join(folder, f"foto_{index:04d}{ext}")
+        path = os.path.join(folder, f"photo_{index:04d}{ext}")
         with open(path, "wb") as f:
             f.write(resp.content)
-        print(f"  [{index}] tersimpan -> {path}")
+        print(f"  [{index}] saved -> {path}")
         return True
     except Exception as e:
-        print(f"  [{index}] GAGAL download: {e}")
+        print(f"  [{index}] FAILED to download: {e}")
         return False
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Pakai: python fb_album_downloader.py <URL_ALBUM>")
+        print("Usage: python fb_album_downloader.py <ALBUM_URL>")
         sys.exit(1)
 
     album_url = sys.argv[1]
@@ -143,10 +143,10 @@ def main():
         album_name = get_album_name(driver)
         out_folder = os.path.join(OUTPUT_DIR, album_name)
         os.makedirs(out_folder, exist_ok=True)
-        print(f"\nMenyimpan ke folder: {out_folder}\n")
+        print(f"\nSaving to folder: {out_folder}\n")
 
         if not open_first_photo(driver):
-            print("Tidak berhasil membuka foto pertama. Cek URL / login.")
+            print("Could not open the first photo. Check the URL / login state.")
             return
 
         seen_urls = set()
@@ -163,16 +163,16 @@ def main():
             else:
                 stagnant_count += 1
                 if stagnant_count >= 3:
-                    print("\nSepertinya sudah sampai foto terakhir (URL tidak berubah). Selesai.")
+                    print("\nLooks like we've reached the last photo (URL stopped changing). Done.")
                     break
 
             if not click_next(driver):
-                print("\nTidak bisa lanjut ke foto berikutnya. Berhenti.")
+                print("\nCould not advance to the next photo. Stopping.")
                 break
 
-            time.sleep(DELAY_ANTAR_FOTO)
+            time.sleep(DELAY_BETWEEN_PHOTOS)
 
-        print(f"\nSelesai. Total {index - 1} foto berhasil diunduh ke: {out_folder}")
+        print(f"\nFinished. {index - 1} photos downloaded to: {out_folder}")
 
     finally:
         driver.quit()
