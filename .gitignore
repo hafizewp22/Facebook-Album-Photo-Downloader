@@ -1,0 +1,8 @@
+# Downloaded photos
+downloads/
+
+# Persistent copy of the Chrome profile used by the script (contains cookies!)
+chrome_profile/
+
+__pycache__/
+*.pyc
